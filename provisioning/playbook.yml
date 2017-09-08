@@ -1,0 +1,70 @@
+##
+# Example Ansible playbook that uses the PostgreSQL module.
+#
+# This installs PostgreSQL on an Ubuntu system, creates a database called
+# "myapp" and a user called "django" with password "mysupersecretpassword"
+# with access to the "myapp" database.
+#
+# copied from https://github.com/ansible/ansible-examples/blob/master/language_features/postgresql.yml
+---
+- hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+  - name: ensure apt cache is up to date
+    apt: update_cache=yes
+  - name: ensure packages are installed
+    apt: name={{item}}
+    with_items:
+        - postgresql
+        - libpq-dev
+        - python-psycopg2
+        # need these to build ehrservice
+        - gradle
+        - maven
+        # require for pgsql extensions to be installed
+        - postgresql-contrib
+        - pgxnclient
+        - postgresql-server-dev-all
+        - postgresql-common
+  - name: ensure the temporal_tables pgsql extension is installed
+    command: pgxn install temporal_tables
+
+- hosts: all
+  become: yes
+  become_user: postgres
+  gather_facts: no
+
+  vars:
+    dbname: ethercis
+    dbuser: ethercis
+    dbpassword: ethercis
+    extschema: ext
+
+  tasks:
+  - name: ensure database is created
+    postgresql_db: name={{dbname}}
+
+  - name: ensure user has access to database
+    postgresql_user: db={{dbname}} name={{dbuser}} password={{dbpassword}} priv=ALL
+
+  - name: ensure user does not have unnecessary privilege
+    postgresql_user: name={{dbuser}} role_attr_flags=NOSUPERUSER,NOCREATEDB
+
+  - name: ensure no other user can access the database
+    postgresql_privs: db={{dbname}} role=PUBLIC type=database priv=ALL state=absent
+
+# the original DB script called for the extensions to be created in an 'ext'
+# schema but this can't be done using the 'postgresql_ext' task as it only
+# accepts a database param and not a schema.
+  # - name: create schema for extensions
+  #   postgresql_schema: name={{extschema}} owner={{dbname}}
+
+  - name: add extensions to schema
+    postgresql_ext: db={{dbname}} name={{item}}
+    with_items:
+        - uuid-ossp
+        - temporal_tables
+        - jsquery
+        - ltree

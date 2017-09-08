@@ -35,7 +35,6 @@ CREATE EXTENSION IF NOT EXISTS "temporal_tables" SCHEMA ext;
 CREATE EXTENSION IF NOT EXISTS "jsquery" SCHEMA ext;
 CREATE EXTENSION IF NOT EXISTS "ltree" SCHEMA ext;
 
--- setup the search_patch so the extensions can be found
+-- setup the search_path so the extensions can be found
 ALTER DATABASE ethercis SET search_path TO "$user",public,ext;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA ext TO ethercis;
-
