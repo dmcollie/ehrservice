@@ -7,30 +7,76 @@
 #
 # copied from https://github.com/ansible/ansible-examples/blob/master/language_features/postgresql.yml
 ---
+# install required OS stuff
 - hosts: all
   become: yes
   gather_facts: no
 
   tasks:
+  - name: Add PostgreSQL repository
+    apt_repository: repo='deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main' state=present
+  - name: Add PostgreSQL repository key
+    apt_key: url=https://www.postgresql.org/media/keys/ACCC4CF8.asc state=present
   - name: ensure apt cache is up to date
     apt: update_cache=yes
   - name: ensure packages are installed
     apt: name={{item}}
     with_items:
-        - postgresql
+        - postgresql-9.6
         - libpq-dev
         - python-psycopg2
         # need these to build ehrservice
         - gradle
         - maven
         # require for pgsql extensions to be installed
-        - postgresql-contrib
+        - postgresql-server-dev-9.6
+        - postgresql-contrib-9.6
         - pgxnclient
-        - postgresql-server-dev-all
         - postgresql-common
+        - git
+        - flex
+        - bison
   - name: ensure the temporal_tables pgsql extension is installed
     command: pgxn install temporal_tables
 
+# build the pgsql jsquery extension
+- hosts: all
+  become: yes
+  gather_facts: no
+  tasks:
+  - name: clone the repo
+    command: git clone https://github.com/postgrespro/jsquery.git
+    args:
+      chdir: /home/vagrant
+      creates: /home/vagrant/jsquery
+  - name: make the extension
+    command: make USE_PGXS=1
+    args:
+      chdir: /home/vagrant/jsquery
+      creates: /home/vagrant/jsquery/jsquery.so
+  - name: install the extension
+    command: make USE_PGXS=1 install
+    args:
+      chdir: /home/vagrant/jsquery
+      creates: /usr/lib/postgresql/9.6/lib/jsquery.so
+  - name: allow postgres user access (to run regression checks)
+    file:
+      path: /home/vagrant/jsquery
+      recurse: yes
+      mode: "ugo+rw"
+
+- hosts: all
+  become: yes
+  become_user: postgres
+  gather_facts: no
+  tasks:
+  - name: check the extension is installed correctly
+    command: make USE_PGXS=1 installcheck
+    args:
+      chdir: /home/vagrant/jsquery
+
+
+# setup database
 - hosts: all
   become: yes
   become_user: postgres
