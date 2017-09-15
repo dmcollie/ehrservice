@@ -1,13 +1,8 @@
 ##
-# Example Ansible playbook that uses the PostgreSQL module.
-#
-# This installs PostgreSQL on an Ubuntu system, creates a database called
-# "myapp" and a user called "django" with password "mysupersecretpassword"
-# with access to the "myapp" database.
-#
-# copied from https://github.com/ansible/ansible-examples/blob/master/language_features/postgresql.yml
+# Installs pre-requisites for ethercis/ehrservice (https://github.com/ethercis/ehrservice)
+# This playbook originally copied from https://github.com/ansible/ansible-examples/blob/master/language_features/postgresql.yml
 ---
-# install required OS stuff
+# install required libs for pgsql stuff
 - hosts: all
   become: yes
   gather_facts: no
@@ -25,9 +20,6 @@
         - postgresql-9.6
         - libpq-dev
         - python-psycopg2
-        # need these to build ehrservice
-        - gradle
-        - maven
         # require for pgsql extensions to be installed
         - postgresql-server-dev-9.6
         - postgresql-contrib-9.6
@@ -114,3 +106,26 @@
         - temporal_tables
         - jsquery
         - ltree
+
+# end of pgsql, now build / install the ehrservice itself
+# install required libs for build stuff
+- hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+  - name: Add gradle repository
+    apt_repository: repo='ppa:cwchien/gradle' state=present      # note this is an unsupported repo
+  - name: Add jdk repository
+    apt_repository: repo='ppa:webupd8team/java' state=present      # note this is an unsupported repo
+  - name: ensure apt cache is up to date
+    apt: update_cache=yes
+  - name: Automatically select the Oracle License
+    shell: echo debconf shared/accepted-oracle-license-v1-1 select true | sudo debconf-set-selections
+  - name: ensure packages are installed
+    apt: name={{item}} force=yes
+    with_items:
+        - oracle-java8-set-default
+        - gradle
+        - maven
+
