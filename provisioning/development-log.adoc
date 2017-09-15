@@ -4,6 +4,10 @@ The command `make USE_PGXS=1 installcheck` fails with 'could not open extension 
 
 I've decided to unbundle the commands in the `install-pgsql-jsquery.sh` script and execute each one in the ansible playbook so I can more easily see which command is failing.
 
+== 15/9/2017
+
+Getting `Peer authentication failed for user` when issuing `psql --username=ethercis`. Ref this https://stackoverflow.com/a/28783632[SO answer] it works.
+
 
 
 

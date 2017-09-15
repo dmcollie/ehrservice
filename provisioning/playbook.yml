@@ -68,7 +68,7 @@
       chdir: /home/vagrant/jsquery
 
 
-# setup database
+# setup ehr database
 - hosts: all
   become: yes
   become_user: postgres
@@ -93,19 +93,23 @@
   - name: ensure no other user can access the database
     postgresql_privs: db={{dbname}} role=PUBLIC type=database priv=ALL state=absent
 
-# the original DB script called for the extensions to be created in an 'ext'
-# schema but this can't be done using the 'postgresql_ext' task as it only
-# accepts a database param and not a schema.
-  # - name: create schema for extensions
-  #   postgresql_schema: name={{extschema}} owner={{dbname}}
+  - name: create schema for extensions
+    command: psql -c 'CREATE SCHEMA IF NOT EXISTS {{extschema}} AUTHORIZATION {{dbname}};' {{dbname}}
 
   - name: add extensions to schema
-    postgresql_ext: db={{dbname}} name={{item}}
+#    don't use postgresql_ext because it doesn't support creating extensions in schemas (only dbs)
+    command: psql -c 'CREATE EXTENSION IF NOT EXISTS "{{item}}" SCHEMA {{extschema}};' {{dbname}}
     with_items:
         - uuid-ossp
         - temporal_tables
         - jsquery
         - ltree
+
+  # setup the search_path so the extensions can be found
+  - name: update database search_path
+    command: psql -c 'ALTER DATABASE {{dbname}} SET search_path TO "$user",public,{{extschema}};' {{dbname}}
+  - name: grant access to functions
+    command: psql -c 'GRANT ALL ON ALL FUNCTIONS IN SCHEMA {{extschema}} TO {{dbuser}};' {{dbname}}
 
 # end of pgsql, now build / install the ehrservice itself
 # install required libs for build stuff
@@ -123,9 +127,19 @@
   - name: Automatically select the Oracle License
     shell: echo debconf shared/accepted-oracle-license-v1-1 select true | sudo debconf-set-selections
   - name: ensure packages are installed
-    apt: name={{item}} force=yes
+    apt: name={{item}}
     with_items:
         - oracle-java8-set-default
         - gradle
         - maven
+
+# build ehrservice
+- hosts: all
+  become: no
+  gather_facts: no
+  tasks:
+    - name: build the ehrservice artifacts
+      command: gradle build
+      args:
+        chdir: /vagrant
 
